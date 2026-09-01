@@ -1,0 +1,221 @@
+substitutions:
+  device_name: ir-blaster
+  friendly_name: IR Blaster
+
+  # رقم GPIO فقط، وليس D2 أو GPIO4 كنص.
+  # غيّره حسب رجل LED الإرسال في لوحة ESP32.
+  tx_gpio: "4"
+
+  # نفس تصميم Topics الافتراضي في Tasmota.
+  mqtt_command_topic: cmnd/ir-blaster/IRHVAC
+  mqtt_command_topic_lower: cmnd/ir-blaster/irhvac
+  mqtt_result_topic: stat/ir-blaster/RESULT
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  libraries:
+    # المكتبة الرسمية غير المعدلة.
+    - IRremoteESP8266=https://github.com/crankyoldgit/IRremoteESP8266.git#v2.9.0
+  includes:
+    - <IRac.h>
+    - <IRutils.h>
+
+# ESP32 الكلاسيكي: WROOM/WROVER/DevKit.
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+
+mqtt:
+  id: mqtt_client
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+
+  birth_message:
+    topic: tele/${device_name}/LWT
+    payload: Online
+    retain: true
+  will_message:
+    topic: tele/${device_name}/LWT
+    payload: Offline
+    retain: true
+  shutdown_message:
+    topic: tele/${device_name}/LWT
+    payload: Offline
+    retain: true
+
+  on_json_message:
+    # الصيغة الأساسية المطابقة لـ Tasmota.
+    - topic: ${mqtt_command_topic}
+      then:
+        - lambda: |-
+            static IRac ac(${tx_gpio});
+
+            JsonObjectConst root = x;
+            JsonObjectConst command = root;
+
+            // نقبل الصيغتين:
+            // {"Vendor":"KELVINATOR", ...}
+            // {"IRHVAC":{"Vendor":"KELVINATOR", ...}}
+            if (!root["IRHVAC"].isNull()) {
+              command = root["IRHVAC"].as<JsonObjectConst>();
+            }
+
+            auto read_bool = [&](const char *key, bool previous) -> bool {
+              JsonVariantConst value = command[key];
+              if (value.isNull()) return previous;
+              if (value.is<bool>()) return value.as<bool>();
+              if (value.is<const char *>()) {
+                return IRac::strToBool(value.as<const char *>(), previous);
+              }
+              return value.as<int>() != 0;
+            };
+
+            if (!command["Vendor"].isNull()) {
+              ac.next.protocol = strToDecodeType(
+                  command["Vendor"].as<const char *>());
+            }
+
+            if (!IRac::isProtocolSupported(ac.next.protocol)) {
+              const char *vendor = command["Vendor"] | "UNKNOWN";
+              ESP_LOGE("irhvac", "Unsupported Vendor: %s", vendor);
+              id(mqtt_client).publish(
+                  "${mqtt_result_topic}",
+                  std::string("{\"IRHVAC\":{\"Error\":\"Unsupported Vendor: ") +
+                      vendor + "\"}}",
+                  0, false);
+              return;
+            }
+
+            JsonVariantConst model = command["Model"];
+            if (!model.isNull()) {
+              ac.next.model = model.is<const char *>()
+                  ? IRac::strToModel(model.as<const char *>(), -1)
+                  : model.as<int16_t>();
+            }
+
+            if (!command["Command"].isNull()) {
+              ac.next.command = IRac::strToCommandType(
+                  command["Command"].as<const char *>());
+            }
+            if (!command["Mode"].isNull()) {
+              ac.next.mode = IRac::strToOpmode(
+                  command["Mode"].as<const char *>());
+            }
+            if (!command["Temp"].isNull()) {
+              ac.next.degrees = command["Temp"].as<float>();
+            }
+            if (!command["FanSpeed"].isNull()) {
+              ac.next.fanspeed = IRac::strToFanspeed(
+                  command["FanSpeed"].as<const char *>());
+            }
+            if (!command["SwingV"].isNull()) {
+              ac.next.swingv = IRac::strToSwingV(
+                  command["SwingV"].as<const char *>());
+            }
+            if (!command["SwingH"].isNull()) {
+              ac.next.swingh = IRac::strToSwingH(
+                  command["SwingH"].as<const char *>());
+            }
+
+            ac.next.power = read_bool("Power", ac.next.power);
+            ac.next.celsius = read_bool("Celsius", ac.next.celsius);
+            ac.next.quiet = read_bool("Quiet", ac.next.quiet);
+            ac.next.turbo = read_bool("Turbo", ac.next.turbo);
+            ac.next.econo = read_bool("Econo", ac.next.econo);
+            ac.next.light = read_bool("Light", ac.next.light);
+            ac.next.filter = read_bool("Filter", ac.next.filter);
+            ac.next.clean = read_bool("Clean", ac.next.clean);
+            ac.next.beep = read_bool("Beep", ac.next.beep);
+            ac.next.iFeel = read_bool("iFeel", ac.next.iFeel);
+
+            if (!command["Sleep"].isNull()) {
+              ac.next.sleep = command["Sleep"].as<int16_t>();
+            }
+
+            JsonVariantConst sensor_temp = command["SensorTemp"];
+            if (!sensor_temp.isUnbound()) {
+              ac.next.sensorTemperature = sensor_temp.isNull()
+                  ? kNoTempValue
+                  : sensor_temp.as<float>();
+            }
+
+            const bool sent = ac.sendAc();
+            const std::string vendor = typeToString(ac.next.protocol).c_str();
+
+            if (!sent) {
+              ESP_LOGE("irhvac", "IRac rejected Vendor: %s", vendor.c_str());
+              id(mqtt_client).publish(
+                  "${mqtt_result_topic}",
+                  std::string("{\"IRHVAC\":{\"Vendor\":\"") + vendor +
+                      "\",\"Error\":\"Send failed\"}}",
+                  0, false);
+              return;
+            }
+
+            ESP_LOGI("irhvac", "IRHVAC sent: Vendor=%s Power=%s Temp=%.1f",
+                     vendor.c_str(), ac.next.power ? "On" : "Off",
+                     ac.next.degrees);
+
+            const std::string response = esphome::json::build_json(
+                [&](JsonObject response_root) {
+                  JsonObject state = response_root["IRHVAC"].to<JsonObject>();
+                  state["Vendor"] = vendor;
+                  state["Model"] = ac.next.model;
+                  state["Command"] =
+                      IRac::commandTypeToString(ac.next.command).c_str();
+                  state["Mode"] = IRac::opmodeToString(ac.next.mode).c_str();
+                  state["Power"] = ac.next.power ? "On" : "Off";
+                  state["Celsius"] = ac.next.celsius ? "On" : "Off";
+                  state["Temp"] = ac.next.degrees;
+                  state["FanSpeed"] =
+                      IRac::fanspeedToString(ac.next.fanspeed).c_str();
+                  state["SwingV"] =
+                      IRac::swingvToString(ac.next.swingv).c_str();
+                  state["SwingH"] =
+                      IRac::swinghToString(ac.next.swingh).c_str();
+                  state["Quiet"] = ac.next.quiet ? "On" : "Off";
+                  state["Turbo"] = ac.next.turbo ? "On" : "Off";
+                  state["Econo"] = ac.next.econo ? "On" : "Off";
+                  state["Light"] = ac.next.light ? "On" : "Off";
+                  state["Filter"] = ac.next.filter ? "On" : "Off";
+                  state["Clean"] = ac.next.clean ? "On" : "Off";
+                  state["Beep"] = ac.next.beep ? "On" : "Off";
+                  state["Sleep"] = ac.next.sleep;
+                  state["iFeel"] = ac.next.iFeel ? "On" : "Off";
+                  if (ac.next.sensorTemperature == kNoTempValue) {
+                    state["SensorTemp"] = nullptr;
+                  } else {
+                    state["SensorTemp"] = ac.next.sensorTemperature;
+                  }
+                });
+
+            id(mqtt_client).publish(
+                "${mqtt_result_topic}", response, 0, false);
+
+    # نقبل أيضاً اسم الأمر بحروف صغيرة.
+    - topic: ${mqtt_command_topic_lower}
+      then:
+        - mqtt.publish_json:
+            # حوّل الأمر إلى Topic الأساسي حتى يبقى كود التحويل في مكان واحد.
+            topic: ${mqtt_command_topic}
+            payload: |-
+              for (JsonPairConst item : x) {
+                root[item.key()] = item.value();
+              }
