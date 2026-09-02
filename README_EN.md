@@ -3,9 +3,10 @@
 [العربية](README.md) | [English](README_EN.md)
 
 Standalone ESPHome configurations that send and receive air-conditioner IR
-commands using the official, unmodified
-[`IRremoteESP8266`](https://github.com/crankyoldgit/IRremoteESP8266) library,
-version `2.9.0`. MQTT commands and received-result JSON use the Tasmota
+commands using [`IRremoteESP8266`](https://github.com/crankyoldgit/IRremoteESP8266)
+version `2.9.0`. The configured fork adds a small, protocol-independent timing
+bridge: `IRremoteESP8266` still encodes the A/C command, while ESPHome emits the
+resulting envelope. MQTT commands and received-result JSON use the Tasmota
 `IRHVAC`/`IrReceived` layout.
 
 > Compatibility here specifically covers the MQTT `IRHVAC` command and the
@@ -56,11 +57,13 @@ not provide the Arduino framework for those chips.
 
 5. Install the firmware on the device.
 
-Do not add ESPHome `remote_transmitter` or `remote_receiver` on these GPIOs.
-`IRremoteESP8266` owns both pins directly, using the same native receive path
-used by Tasmota on ESP chips. Use a suitable transistor to drive the infrared
-LED; do not connect a high-current LED directly to a GPIO. Connect a 3.3 V
-demodulating IR receiver module to `rx_gpio`.
+Do not add another ESPHome `remote_transmitter` or `remote_receiver` on these
+GPIOs; the complete YAML already configures the required transmitter. On
+ESP32, ESPHome uses the hardware RMT peripheral to emit the timing envelope,
+avoiding software-carrier jitter caused by Wi-Fi and framework interrupts.
+`IRremoteESP8266` owns the receive pin directly. Use a suitable transistor to
+drive the infrared LED; do not connect a high-current LED directly to a GPIO.
+Connect a 3.3 V demodulating IR receiver module to `rx_gpio`.
 
 ## MQTT
 
@@ -165,8 +168,9 @@ for:
 - ESP32-S3
 
 Every YAML file is standalone and uses neither `packages` nor `!include`. The
-referenced decoder is the pinned official `IRremoteESP8266 2.9.0` release. A
-small adapter from this repository converts MQTT and decoded states to the
-Tasmota JSON layout; it does not modify the IR library. This was a software
+referenced fork is based on `IRremoteESP8266 2.9.0`; its timing-capture hooks
+do not change any protocol encoder. A small adapter from this repository
+converts MQTT and decoded states to the Tasmota JSON layout and sends the
+captured envelope through ESPHome's platform transmitter. This was a software
 build test; real-world feature compatibility still depends on the protocol,
 air-conditioner model, transmitter circuit, and receiver hardware.

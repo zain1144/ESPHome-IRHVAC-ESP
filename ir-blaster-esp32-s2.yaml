@@ -21,8 +21,8 @@ substitutions:
   mqtt_tele_result_topic: tele/ir-blaster/RESULT
   mqtt_lwt_topic: tele/ir-blaster/LWT
 
-  # Official IRremoteESP8266 plus this repository's ESPHome adapter.
-  ir_library_source: https://github.com/crankyoldgit/IRremoteESP8266.git#v2.9.0
+  # IRremoteESP8266 v2.9.0 plus a minimal ESPHome timing-output bridge.
+  ir_library_source: https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny.git#esphome-libretiny
   ir_controller_source: https://github.com/zain1144/ESPHome-IRHVAC-ESP.git#main
 
 esphome:
@@ -38,6 +38,7 @@ esphome:
     then:
       - lambda: |-
           esphome_irhvac_esp::setup(
+              id(ir_tx),
               ${tx_gpio},
               ${rx_gpio},
               ${ir_receive_buffer_size},
@@ -64,6 +65,14 @@ ota:
 
 web_server:
   port: 80
+
+# ESP32 uses its hardware RMT peripheral for stable carrier and envelope
+# timing. Blocking mode keeps the receiver paused until the frame is complete.
+remote_transmitter:
+  id: ir_tx
+  pin: ${tx_gpio}
+  carrier_duty_percent: 50%
+  non_blocking: false
 
 mqtt:
   id: mqtt_client
@@ -100,8 +109,8 @@ mqtt:
             id(mqtt_client).publish(
                 "${mqtt_result_topic}", result.response_json, 0, false);
 
-# IRrecv captures and decodes directly through the official library.
-# Do not add ESPHome remote_receiver or remote_transmitter on these GPIOs.
+# IRrecv captures and decodes directly through IRremoteESP8266.
+# Do not add another receiver or transmitter on these GPIOs.
 interval:
   - interval: 20ms
     then:

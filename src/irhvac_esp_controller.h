@@ -3,21 +3,27 @@
 #include <IRac.h>
 #include <IRrecv.h>
 #include <IRutils.h>
+#include <irremote_esphome_bridge.h>
 
 #include <cstdint>
 #include <string>
 
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/remote_base/remote_base.h"
+#include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 // Tasmota-compatible IRHVAC command and receive adapter for native ESP chips.
-// IRremoteESP8266 owns both GPIOs directly, as it does when used by Tasmota.
+// IRremoteESP8266 encodes every supported A/C protocol. ESPHome emits the
+// resulting timings through its platform transmitter (hardware RMT on ESP32).
 namespace esphome_irhvac_esp {
 
 static const char *const TAG = "irhvac";
 static IRac *ac = nullptr;
 static IRrecv *receiver = nullptr;
+static esphome::remote_transmitter::RemoteTransmitterComponent *transmitter =
+    nullptr;
 static bool receiver_pullup = true;
 static bool busy = false;
 static bool transmitted_once = false;
@@ -29,6 +35,7 @@ static const uint32_t RECEIVE_ECHO_WINDOW_MS = 300;
 
 struct SendResult {
   bool success{false};
+  size_t timing_count{0};
   std::string error;
   std::string response_json;
 };
@@ -93,11 +100,15 @@ static std::string state_json(const bool success,
   });
 }
 
-static void setup(const uint16_t tx_pin, const uint16_t rx_pin,
+static void setup(
+    esphome::remote_transmitter::RemoteTransmitterComponent
+        *remote_transmitter,
+    const uint16_t tx_pin, const uint16_t rx_pin,
                   const uint16_t receive_buffer_size = 1024,
                   const uint8_t receive_timeout_ms = 50,
                   const uint8_t receive_tolerance = 25,
                   const bool pullup = true) {
+  transmitter = remote_transmitter;
   if (ac == nullptr) ac = new IRac(tx_pin);
   if (receiver == nullptr) {
     receiver_pullup = pullup;
@@ -108,7 +119,7 @@ static void setup(const uint16_t tx_pin, const uint16_t rx_pin,
     receiver->enableIRIn(receiver_pullup);
   }
   ESP_LOGI(TAG,
-           "Native IRremoteESP8266 ready: tx=GPIO%u rx=GPIO%u buffer=%u "
+           "IRremoteESP8266 encoder ready: tx=GPIO%u rx=GPIO%u buffer=%u "
            "timeout=%ums tolerance=%u%%",
            static_cast<unsigned>(tx_pin), static_cast<unsigned>(rx_pin),
            static_cast<unsigned>(receive_buffer_size),
@@ -127,7 +138,7 @@ static SendResult send_object(JsonObjectConst input, const char *source) {
     result.response_json = state_json(false, result.error);
     return result;
   }
-  if (ac == nullptr) {
+  if (ac == nullptr || transmitter == nullptr) {
     result.error = "IR controller is not configured";
     result.response_json = state_json(false, result.error);
     return result;
@@ -200,19 +211,32 @@ static SendResult send_object(JsonObjectConst input, const char *source) {
 
   busy = true;
   if (receiver != nullptr) receiver->disableIRIn();
+
+  // Capture the protocol encoder's ideal envelope first, then let ESPHome's
+  // transmitter emit it. This avoids software-carrier jitter on ESP32-C3 and
+  // uses the ESP32 RMT peripheral when available.
+  auto transmit = transmitter->transmit();
+  auto *transmit_data = transmit.get_data();
+  irremote_esphome_bridge::begin(transmitter, transmit_data);
   result.success = ac->sendAc();
-  if (result.success) {
+  irremote_esphome_bridge::end();
+  result.timing_count = transmit_data->get_data().size();
+
+  if (result.success && result.timing_count != 0) {
+    transmit.perform();
     transmitted_once = true;
     last_transmit_ms = esphome::millis();
   } else {
+    result.success = false;
     result.error = "IRac rejected the requested state";
   }
   if (receiver != nullptr) receiver->enableIRIn(receiver_pullup);
   busy = false;
 
   result.response_json = state_json(result.success, result.error);
-  ESP_LOGI(TAG, "%s IRHVAC: vendor=%s result=%s", source,
+  ESP_LOGI(TAG, "%s IRHVAC: vendor=%s timings=%u result=%s", source,
            typeToString(ac->next.protocol).c_str(),
+           static_cast<unsigned>(result.timing_count),
            result.success ? "SUCCESS" : "FAILED");
   return result;
 }
