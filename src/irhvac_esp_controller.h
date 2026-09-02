@@ -51,7 +51,7 @@ static bool read_bool(JsonObjectConst command, const char *key,
 }
 
 static void write_model(JsonObject command, const stdAc::state_t &state) {
-  const String model_name = modelToStr(state.protocol, state.model);
+  const String model_name = irutils::modelToStr(state.protocol, state.model);
   if (model_name.length() != 0 && !model_name.equalsIgnoreCase("UNKNOWN"))
     command["Model"] = model_name.c_str();
   else
