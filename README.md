@@ -1,5 +1,7 @@
 # ESPHome IRHVAC for ESP8266 and ESP32
 
+[العربية](README.md) | [English](README_EN.md)
+
 ملفات ESPHome مستقلة تستقبل أمر المكيف `IRHVAC` عبر MQTT بصيغة متوافقة مع
 أمر Tasmota، ثم ترسل الإشارة باستخدام مكتبة
 [`IRremoteESP8266`](https://github.com/crankyoldgit/IRremoteESP8266) الرسمية
