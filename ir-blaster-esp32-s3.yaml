@@ -2,11 +2,11 @@ substitutions:
   device_name: ir-blaster
   friendly_name: IR Blaster
 
-  # رقم GPIO فقط، وليس D2 أو GPIO4 كنص.
-  # غيّره حسب رجل LED الإرسال في لوحة ESP32-S3.
+  # Use the GPIO number only, without a D or GPIO prefix.
+  # Change it to match the IR transmitter LED pin on your ESP32-S3 board.
   tx_gpio: "4"
 
-  # نفس تصميم Topics الافتراضي في Tasmota.
+  # Default topic layout matching Tasmota.
   mqtt_command_topic: cmnd/ir-blaster/IRHVAC
   mqtt_command_topic_lower: cmnd/ir-blaster/irhvac
   mqtt_result_topic: stat/ir-blaster/RESULT
@@ -15,7 +15,7 @@ esphome:
   name: ${device_name}
   friendly_name: ${friendly_name}
   libraries:
-    # المكتبة الرسمية غير المعدلة.
+    # Official, unmodified library release.
     - IRremoteESP8266=https://github.com/crankyoldgit/IRremoteESP8266.git#v2.9.0
   includes:
     - <IRac.h>
@@ -62,7 +62,7 @@ mqtt:
     retain: true
 
   on_json_message:
-    # الصيغة الأساسية المطابقة لـ Tasmota.
+    # Main format matching Tasmota.
     - topic: ${mqtt_command_topic}
       then:
         - lambda: |-
@@ -71,7 +71,7 @@ mqtt:
             JsonObjectConst root = x;
             JsonObjectConst command = root;
 
-            // نقبل الصيغتين:
+            // Accept both forms:
             // {"Vendor":"KELVINATOR", ...}
             // {"IRHVAC":{"Vendor":"KELVINATOR", ...}}
             if (!root["IRHVAC"].isNull()) {
@@ -210,11 +210,11 @@ mqtt:
             id(mqtt_client).publish(
                 "${mqtt_result_topic}", response, 0, false);
 
-    # نقبل أيضاً اسم الأمر بحروف صغيرة.
+    # Also accept the lowercase command topic.
     - topic: ${mqtt_command_topic_lower}
       then:
         - mqtt.publish_json:
-            # حوّل الأمر إلى Topic الأساسي حتى يبقى كود التحويل في مكان واحد.
+            # Republish to the main topic so the conversion logic stays in one place.
             topic: ${mqtt_command_topic}
             payload: |-
               for (JsonPairConst item : x) {
