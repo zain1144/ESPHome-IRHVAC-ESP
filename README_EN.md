@@ -2,15 +2,15 @@
 
 [العربية](README.md) | [English](README_EN.md)
 
-Standalone ESPHome configurations that receive Tasmota-compatible `IRHVAC`
-commands over MQTT and transmit the corresponding infrared signal using the
-official, unmodified
+Standalone ESPHome configurations that send and receive air-conditioner IR
+commands using the official, unmodified
 [`IRremoteESP8266`](https://github.com/crankyoldgit/IRremoteESP8266) library,
-version `2.9.0`.
+version `2.9.0`. MQTT commands and received-result JSON use the Tasmota
+`IRHVAC`/`IrReceived` layout.
 
-> Compatibility here specifically means accepting the MQTT `IRHVAC` command
-> and its JSON fields and publishing a `RESULT` response. This project does not
-> turn ESPHome into Tasmota or implement other Tasmota commands.
+> Compatibility here specifically covers the MQTT `IRHVAC` command and the
+> received `IrReceived` result. This project does not turn ESPHome into Tasmota
+> or implement unrelated Tasmota commands.
 
 ## Choose one file
 
@@ -33,14 +33,16 @@ not provide the Arduino framework for those chips.
 
 1. Create a new device in the ESPHome dashboard.
 2. Replace its YAML contents with the file matching your chip.
-3. Change the transmitter pin number at the top of the file:
+3. Change both IR pin numbers at the top of the file:
 
    ```yaml
    tx_gpio: "4"
+   rx_gpio: "14"
    ```
 
-   Enter the actual GPIO number only. For example, pin `D2` on a D1 mini is
-   `GPIO4`.
+   Enter actual GPIO numbers only. For example, `D2` on a D1 mini is `GPIO4`
+   and `D5` is `GPIO14`. ESP32-C3/S2/S3 files use `GPIO5` as the default
+   receiver pin.
 
 4. Add your settings to ESPHome's `secrets.yaml`:
 
@@ -54,9 +56,11 @@ not provide the Arduino framework for those chips.
 
 5. Install the firmware on the device.
 
-Do not add `remote_transmitter` on the same GPIO. `IRremoteESP8266` controls the
-pin and generates the carrier directly. Use a suitable transistor to drive the
-infrared LED; do not connect a high-current LED directly to a GPIO.
+Do not add ESPHome `remote_transmitter` or `remote_receiver` on these GPIOs.
+`IRremoteESP8266` owns both pins directly, using the same native receive path
+used by Tasmota on ESP chips. Use a suitable transistor to drive the infrared
+LED; do not connect a high-current LED directly to a GPIO. Connect a 3.3 V
+demodulating IR receiver module to `rx_gpio`.
 
 ## MQTT
 
@@ -106,6 +110,23 @@ After transmitting, the device publishes the state it used to:
 stat/ir-blaster/RESULT
 ```
 
+When the physical IR receiver detects any supported code, the device publishes
+the Tasmota-style result to:
+
+```text
+tele/ir-blaster/RESULT
+```
+
+For a decoded HVAC frame, the payload includes its complete normalized state:
+
+```json
+{"IrReceived":{"Protocol":"KELVINATOR","Bits":128,"Data":"0x...","Repeat":0,"IRHVAC":{"Vendor":"KELVINATOR","Model":-1,"Command":"Control","Mode":"Cool","Power":"On","Celsius":"On","Temp":24,"FanSpeed":"Min","SwingV":"Auto","SwingH":"Auto","Quiet":"Off","Turbo":"Off","Econo":"Off","Light":"Off","Filter":"Off","Clean":"On","Beep":"Off","Sleep":-1,"iFeel":"Off","SensorTemp":null}}}
+```
+
+The same complete `IRHVAC` object is written to the ESPHome log. Recognized
+non-HVAC protocols and unknown captures are still published with protocol,
+bit count, data or hash, and repeat information.
+
 Example using Mosquitto:
 
 ```bash
@@ -144,6 +165,8 @@ for:
 - ESP32-S3
 
 Every YAML file is standalone and uses neither `packages` nor `!include`. The
-referenced library is the pinned official `IRremoteESP8266 2.9.0` release. This
-was a software build test; real-world feature compatibility still depends on
-the protocol, air-conditioner model, and transmitter circuit.
+referenced decoder is the pinned official `IRremoteESP8266 2.9.0` release. A
+small adapter from this repository converts MQTT and decoded states to the
+Tasmota JSON layout; it does not modify the IR library. This was a software
+build test; real-world feature compatibility still depends on the protocol,
+air-conditioner model, transmitter circuit, and receiver hardware.

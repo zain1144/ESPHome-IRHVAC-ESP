@@ -1,0 +1,25 @@
+{
+  "name": "ESPHomeIRHVACESPController",
+  "version": "1.0.0",
+  "description": "Tasmota-compatible IRHVAC transmitter and native receiver for ESPHome on ESP8266 and ESP32",
+  "keywords": [
+    "esphome",
+    "irhvac",
+    "esp8266",
+    "esp32"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zain1144/ESPHome-IRHVAC-ESP.git"
+  },
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif8266",
+    "espressif32"
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src"
+  }
+}
