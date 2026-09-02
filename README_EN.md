@@ -157,15 +157,12 @@ configuration is not limited to Kelvinator units.
 
 ## Verification
 
-The configurations were checked with ESPHome `2026.8.2`. Configuration
-validation, full compilation, and firmware generation completed successfully
-for:
-
-- ESP8266
-- ESP32
-- ESP32-C3
-- ESP32-S2
-- ESP32-S3
+The configurations were checked with ESPHome `2026.8.2`. All ESP8266, ESP32,
+ESP32-C3, ESP32-S2, and ESP32-S3 YAML files pass configuration validation. After
+the current timing bridge was added, full compilation and firmware generation
+also completed successfully for ESP8266 and ESP32-C3. These cover both ESPHome
+transmit paths used here: the ESP8266 software transmitter and ESP32's hardware
+RMT transmitter.
 
 Every YAML file is standalone and uses neither `packages` nor `!include`. The
 referenced fork is based on `IRremoteESP8266 2.9.0`; its timing-capture hooks
