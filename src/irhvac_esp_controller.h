@@ -223,9 +223,6 @@ static ReceiveResult receive() {
 
   decode_results decoded{};
   if (!receiver->decode(&decoded)) return result;
-  // The save buffer used by setup() already rearms capture in decode().
-  // Calling resume() is harmless and also keeps this correct if that changes.
-  receiver->resume();
 
   result.decoded = true;
   const uint32_t now = esphome::millis();
