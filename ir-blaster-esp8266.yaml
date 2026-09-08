@@ -22,7 +22,7 @@ substitutions:
   mqtt_lwt_topic: tele/ir-blaster/LWT
 
   # IRremoteESP8266 v2.9.0 plus a minimal ESPHome timing-output bridge.
-  ir_library_source: https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny.git#esphome-libretiny
+  ir_library_source: https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny.git#main
   ir_controller_source: https://github.com/zain1144/ESPHome-IRHVAC-ESP.git#main
 
 esphome:

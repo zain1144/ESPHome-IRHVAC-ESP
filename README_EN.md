@@ -70,7 +70,7 @@ Connect a 3.3 V demodulating IR receiver module to `rx_gpio`.
 The project uses two repositories in addition to ESPHome:
 
 - The [`IRremoteESP8266-ESPHome-LibreTiny`](https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny)
-  branch is based on the official `IRremoteESP8266 2.9.0` release. Commit
+  repository is based on the official `IRremoteESP8266 2.9.0` release. Commit
   `04b20e7` is the library revision tested with this project.
 - `src/irhvac_esp_controller.h` in this repository parses Tasmota-style JSON,
   creates `stdAc::state_t`, invokes `IRac`, and connects transmission and
@@ -100,7 +100,7 @@ Wi-Fi and framework interrupts intervened.
 
 ### Pinning and updates
 
-The YAML files track `#esphome-libretiny` to receive project updates. However,
+The YAML files track `#main` to receive project updates. However,
 PlatformIO caches Git dependencies and does not fetch the newest commit on
 every build. After the branch changes, use **Clean Build Files** in ESPHome and
 build again.
@@ -113,7 +113,7 @@ ir_controller_source: https://github.com/zain1144/ESPHome-IRHVAC-ESP.git#db8cabb
 ```
 
 When a newer IRremoteESP8266 release becomes available, merge or rebase
-upstream into the compatibility branch, reapply the small bridge if needed,
+upstream into the `main` branch, reapply the small bridge if needed,
 then test both transmission and reception. Do not switch directly to the
 official source first: these additions have not been merged upstream.
 

@@ -64,7 +64,7 @@
 
 يستخدم المشروع مستودعين بالإضافة إلى ESPHome:
 
-- فرع [`IRremoteESP8266-ESPHome-LibreTiny`](https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny)
+- مكتبة [`IRremoteESP8266-ESPHome-LibreTiny`](https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny)
   مبني على الإصدار الرسمي `IRremoteESP8266 2.9.0`. النسخة التي اختُبرت مع
   هذا المشروع هي commit ‏`04b20e7`.
 - ملف `src/irhvac_esp_controller.h` في هذا المستودع يحلل JSON بصيغة Tasmota،
@@ -93,7 +93,7 @@ ESP32-C3 إلى توليد الحامل برمجيًا، وهو ما سبب نب
 
 ### التثبيت والتحديث
 
-تستخدم ملفات YAML الفرع `#esphome-libretiny` للحصول على تحديثات هذا المشروع.
+تستخدم ملفات YAML الفرع `#main` للحصول على تحديثات هذا المشروع.
 لكن PlatformIO يخزن مكتبات Git مؤقتًا ولا يجلب آخر commit في كل بناء. بعد
 تحديث الفرع استخدم **Clean Build Files** من واجهة ESPHome ثم أعد البناء.
 
@@ -104,7 +104,7 @@ ir_library_source: https://github.com/zain1144/IRremoteESP8266-ESPHome-LibreTiny
 ir_controller_source: https://github.com/zain1144/ESPHome-IRHVAC-ESP.git#db8cabb
 ```
 
-عند صدور نسخة أحدث من `IRremoteESP8266` يجب دمج upstream داخل الفرع المعدل،
+عند صدور نسخة أحدث من `IRremoteESP8266` يجب دمج upstream داخل فرع `main`،
 إعادة تطبيق الجسر الصغير عند الحاجة، ثم اختبار الإرسال والاستقبال. لا يُنصح
 بتغيير الرابط مباشرة إلى النسخة الرسمية قبل ذلك، لأن الإضافات ليست موجودة
 في upstream حتى الآن.
